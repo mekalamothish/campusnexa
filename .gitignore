@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/.angular/
+**/out-tsc/
+.runtime/
+backups/
+test-results/
+**/playwright-report/
+.DS_Store

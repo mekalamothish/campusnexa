@@ -1,0 +1,689 @@
+@if (recovery(); as recoveryLink) {
+  @for (link of [recoveryLink]; track link) {
+    <password-recovery [token]="link.token" [accountEmail]="link.email" />
+  }
+} @else if (inviteToken()) {
+  @for (token of [inviteToken()]; track token) {
+    <accept-invitation [token]="token" />
+  }
+} @else if (mfaPending()) {
+  <main class="min-h-screen px-5 py-8">
+    <mfa-challenge (verified)="finishMfa()" />
+  </main>
+} @else if (booting()) {
+  <main class="boot">
+    <span class="brand-mark">N</span>
+    <p>Opening your workspace…</p>
+  </main>
+} @else if (!user()) {
+  <main class="login-layout">
+    <section class="login-story">
+      <div class="brand">
+        <span class="brand-mark">N</span>CampusNexa<span class="brand-dot"
+          >●</span
+        >
+      </div>
+      <div>
+        <div class="eyebrow light">ONE CONNECTED SCHOOL WORKSPACE</div>
+        <h1>More possibility.<br />Less complexity.</h1>
+        <p>
+          Bring your schools, branches and people together.<br />A considered
+          foundation for everything that comes next.
+        </p>
+      </div>
+      <div class="story-bottom">
+        <span class="orbit">◎</span>
+        <div>
+          Built to grow with you.<br /><span
+            >One school today. A network tomorrow.</span
+          >
+        </div>
+      </div>
+    </section>
+    <section class="login-panel">
+      <div class="login-card">
+        <span class="pill">FOUNDATION PREVIEW · PHASE 01</span>
+        <h2>Welcome to your<br />school workspace.</h2>
+        <p class="muted">Sign in with your organization account.</p>
+        @if (error()) {
+          <div class="alert error" role="alert">{{ error() }}</div>
+        }
+        <form (ngSubmit)="login()">
+          <label for="email">Email address</label
+          ><input
+            id="email"
+            name="email"
+            type="email"
+            [(ngModel)]="email"
+            autocomplete="username"
+            placeholder="you@school.edu"
+            required
+            maxlength="254"
+          />
+          <label for="password">Password</label
+          ><input
+            id="password"
+            name="password"
+            type="password"
+            [(ngModel)]="password"
+            autocomplete="current-password"
+            placeholder="Enter your password"
+            required
+            maxlength="256"
+          />
+          <button class="primary full" [disabled]="busy()">
+            {{ busy() ? "Signing in…" : "Sign in to workspace" }}
+            <span>↗</span>
+          </button>
+        </form>
+        <a class="text-button mt-4 inline-block" href="#recover"
+          >Forgot password?</a
+        >
+        <div class="login-note">
+          <strong>Local development environment</strong>
+          <p>
+            Use the fixture account and generated password described in the
+            project README. Do not enter real student information.
+          </p>
+        </div>
+        <footer>CampusNexa · An independent school management product</footer>
+      </div>
+    </section>
+  </main>
+} @else {
+  <a
+    class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-white focus:p-3"
+    href="#main-content"
+    >Skip to main content</a
+  >
+  <div class="workspace">
+    <aside class="sidebar">
+      <a href="/" class="brand"
+        ><span class="brand-mark">N</span>CampusNexa<span class="brand-dot"
+          >●</span
+        ></a
+      >
+      <div class="workspace-picker">
+        <span class="school-icon">▥</span>
+        <div>
+          <small>YOUR ORGANIZATION</small
+          ><strong>{{ membership()?.name ?? "No active membership" }}</strong>
+        </div>
+      </div>
+      @if (user()!.memberships.length > 1) {
+        <label for="tenant" class="sr-only">Organization</label
+        ><select
+          id="tenant"
+          [ngModel]="membership()?.tenantId"
+          (ngModelChange)="switchTenant($event)"
+          [disabled]="busy()"
+        >
+          @for (m of user()!.memberships; track m.tenantId) {
+            <option [value]="m.tenantId">{{ m.name }}</option>
+          }
+        </select>
+      }
+      <div class="nav-label">WORKSPACE</div>
+      <nav aria-label="Main navigation">
+        @for (item of nav; track item; let i = $index) {
+          @if (item !== "People & access" || canManage()) {
+            <button
+              [class.active]="page() === item"
+              [attr.aria-current]="page() === item ? 'page' : null"
+              (click)="navigate(item)"
+              [disabled]="busy() || !membership()"
+            >
+              <span class="nav-icon" aria-hidden="true">{{ navIcons[i] }}</span
+              >{{ item }}
+              @if (page() === item) {
+                <span class="active-dot">●</span>
+              }
+            </button>
+          }
+        }
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="phase-card">
+          <span class="mini-star">✳</span><strong>A strong start.</strong>
+          <p>
+            Your platform foundation is taking shape. School modules arrive in
+            the next phases.
+          </p>
+          <span>PHASE 01 / FOUNDATION</span>
+        </div>
+        <button class="user-card" (click)="logout()" [disabled]="busy()">
+          <span class="avatar">{{ user()!.displayName.charAt(0) }}</span
+          ><span
+            ><strong>{{ roleLabel(membership()?.role ?? "User") }}</strong
+            ><small>Sign out ↗</small></span
+          >
+        </button>
+      </div>
+    </aside>
+    <div class="main-area">
+      <header class="topbar">
+        <div>
+          <span class="muted">Workspace</span><span class="crumb">/</span
+          >{{ page() }}
+        </div>
+        <div class="flex items-center gap-4">
+          <span class="environment"><i></i>Local development</span
+          ><button
+            class="text-button md:hidden"
+            (click)="logout()"
+            [disabled]="busy()"
+          >
+            Sign out
+          </button>
+        </div>
+      </header>
+      <main class="content" id="main-content" [attr.aria-busy]="busy()">
+        <div class="page-heading">
+          <div>
+            <div class="eyebrow">{{ membership()?.name }}</div>
+            <h1>
+              {{
+                page() === "Overview" ? "A clear view of your school." : page()
+              }}
+            </h1>
+            <p class="muted">
+              @switch (page()) {
+                @case ("Overview") {
+                  Your people, places and platform — connected in one workspace.
+                }
+                @case ("Branches") {
+                  A connected network, with room for each branch to be
+                  different.
+                }
+                @case ("People & access") {
+                  The right access, for the right people.
+                }
+                @case ("Modules") {
+                  Your product grows one carefully built capability at a time.
+                }
+                @case ("Activity log") {
+                  A traceable history of changes in your workspace.
+                }
+                @case ("Settings") {
+                  Organization defaults, with branch-level flexibility.
+                }
+              }
+            </p>
+          </div>
+          <span class="outline-pill">Phase 01</span>
+        </div>
+        @if (error()) {
+          <div class="alert error" role="alert">
+            {{ error() }}
+            @if (page() !== "Settings" || !settings()) {
+              <button class="text-button" (click)="load()" [disabled]="busy()">
+                Try again
+              </button>
+            }
+          </div>
+        }
+        @if (notice()) {
+          <div class="alert success" role="status">{{ notice() }}</div>
+        }
+        @if (busy()) {
+          <div class="loading-line" role="status">Updating workspace…</div>
+        }
+        @if (!membership()) {
+          <div class="panel empty">
+            No active organization membership. Contact your organization
+            administrator.
+          </div>
+        }
+        @switch (page()) {
+          @case ("Account security") {
+            <account-security />
+          }
+          @case ("Overview") {
+            @if (overview(); as stats) {
+              <section class="hero-panel">
+                <div>
+                  <span class="eyebrow light"
+                    >YOUR WORKSPACE, READY TO GROW</span
+                  >
+                  <h2>Good systems.<br />Better school days.</h2>
+                  <p>
+                    Start with your branches and organization preferences.<br />Everything
+                    else builds on this foundation.
+                  </p>
+                  <button class="light-button" (click)="navigate('Branches')">
+                    Explore your branches <span>↗</span>
+                  </button>
+                </div>
+                <div class="hero-art" aria-hidden="true">
+                  <div class="art-disc"></div>
+                  <div class="art-block block-one"></div>
+                  <div class="art-block block-two"></div>
+                  <div class="art-block block-three"></div>
+                  <span class="art-plus">✳</span>
+                </div>
+              </section>
+              <section class="stat-grid" aria-label="Workspace summary">
+                <article class="stat">
+                  <div>
+                    <span>Accessible branches</span
+                    ><span class="stat-icon">⊞</span>
+                  </div>
+                  <strong>{{ stats.branches }}</strong
+                  ><small>{{
+                    isAdmin()
+                      ? "Across your organization"
+                      : "Within your assigned
+            access"
+                  }}</small>
+                </article>
+                <article class="stat">
+                  <div>
+                    <span>Active memberships</span
+                    ><span class="stat-icon lavender">♙</span>
+                  </div>
+                  <strong>{{ stats.members }}</strong
+                  ><small>Scoped to your workspace access</small>
+                </article>
+                <article class="stat">
+                  <div>
+                    <span>Enabled modules</span
+                    ><span class="stat-icon peach">▦</span>
+                  </div>
+                  <strong>{{ stats.enabledModules }}</strong
+                  ><small>Platform foundation enabled</small>
+                </article>
+              </section>
+              <div class="overview-bottom">
+                <section class="panel">
+                  <div class="section-heading">
+                    <h2>Recent activity</h2>
+                    <button
+                      class="text-button"
+                      (click)="navigate('Activity log')"
+                    >
+                      View all ↗
+                    </button>
+                  </div>
+                  @for (a of stats.recentActivity; track a.id) {
+                    <div class="activity-item">
+                      <span class="activity-symbol">↗</span>
+                      <div>
+                        <strong>{{ a.subject }}</strong
+                        ><small>{{ a.action }}</small>
+                      </div>
+                      <time>{{ a.occurredAt | date: "MMM d, HH:mm" }}</time>
+                    </div>
+                  } @empty {
+                    <p class="empty">No activity in your current scope yet.</p>
+                  }
+                </section>
+                <section class="panel next-panel">
+                  <span class="eyebrow">ON THE HORIZON</span>
+                  <h2>One foundation.<br />Many possibilities.</h2>
+                  <p>
+                    Student records, academics, fees and campus operations are
+                    planned modules, not available features yet.
+                  </p>
+                  <button class="text-button" (click)="navigate('Modules')">
+                    Explore the roadmap ↗
+                  </button>
+                  <div class="roadmap-tags">
+                    <span>Students</span><span>Attendance</span
+                    ><span>Finance</span><span>Mobile</span>
+                  </div>
+                </section>
+              </div>
+            }
+          }
+          @case ("Branches") {
+            <section class="branch-grid">
+              @for (b of branches(); track b.id) {
+                <article class="panel branch-card">
+                  <div class="branch-card-top">
+                    <span class="branch-icon">▥</span
+                    ><span class="pill">{{ b.code }}</span>
+                  </div>
+                  <h2>{{ b.name }}</h2>
+                  <p class="muted">
+                    {{ b.timeZoneOverride ?? "Organization timezone" }}
+                  </p>
+                  <div class="branch-footer">
+                    <span class="status-dot"></span>Active branch<span
+                      >Since {{ b.createdAt | date: "MMM yyyy" }}</span
+                    >
+                  </div>
+                </article>
+              } @empty {
+                @if (!busy()) {
+                  <p class="empty">No branches available in your scope.</p>
+                }
+              }
+            </section>
+            @if (isAdmin()) {
+              <section class="panel form-panel">
+                <h2>Add a branch</h2>
+                <p class="muted">
+                  New branches inherit organization settings. Codes must be
+                  unique within your organization.
+                </p>
+                <form (ngSubmit)="createBranch()" class="inline-form">
+                  <div>
+                    <label for="branch-name">Branch name</label
+                    ><input
+                      id="branch-name"
+                      name="branchName"
+                      [(ngModel)]="branchName"
+                      required
+                      maxlength="120"
+                      placeholder="e.g. Riverside Campus"
+                    />
+                  </div>
+                  <div>
+                    <label for="branch-code">Branch code</label
+                    ><input
+                      id="branch-code"
+                      name="branchCode"
+                      [(ngModel)]="branchCode"
+                      required
+                      pattern="[A-Za-z0-9-]{2,12}"
+                      maxlength="12"
+                      placeholder="e.g. RIVER"
+                    />
+                  </div>
+                  <button class="primary" [disabled]="busy()">
+                    + Create branch
+                  </button>
+                </form>
+              </section>
+            }
+          }
+          @case ("People & access") {
+            <section class="panel">
+              <div class="section-heading">
+                <h2>Workspace members</h2>
+                <span class="pill">READ-ONLY DIRECTORY</span>
+              </div>
+              <div class="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Person</th>
+                      <th>Role</th>
+                      <th>Scope</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (m of members(); track m.id) {
+                      <tr>
+                        <td>
+                          <strong>{{ m.displayName }}</strong
+                          ><small>{{ m.email }}</small>
+                        </td>
+                        <td>{{ roleLabel(m.role) }}</td>
+                        <td>
+                          {{ m.branchId ? "Assigned branch" : "All branches" }}
+                        </td>
+                        <td>
+                          <span class="pill">{{
+                            m.isActive ? "Active" : "Inactive"
+                          }}</span>
+                        </td>
+                      </tr>
+                    } @empty {
+                      <tr>
+                        <td colspan="4">No members to display.</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <p class="footnote">
+                Existing memberships are read-only. Role editing and account
+                recovery are upcoming Phase 1 work.
+              </p>
+            </section>
+            @if (isAdmin() && membership()) {
+              @for (tenant of [membership()!.tenantId]; track tenant) {
+                <invitation-manager [tenantId]="tenant" />
+              }
+            }
+          }
+          @case ("Modules") {
+            <section class="module-grid">
+              @for (m of modules(); track m.module) {
+                <article class="panel module-card">
+                  <div class="branch-card-top">
+                    <span class="module-icon">▦</span
+                    ><span class="pill" [class.planned]="!m.enabled">{{
+                      m.enabled ? "Enabled" : "Planned"
+                    }}</span>
+                  </div>
+                  <h2 class="capitalize">{{ m.module }}</h2>
+                  <p class="muted">{{ moduleDescription(m.module) }}</p>
+                  <small>{{
+                    m.enabled
+                      ? "Available in this milestone"
+                      : "Not implemented · future
+            delivery phase"
+                  }}</small>
+                </article>
+              }
+            </section>
+            <p class="footnote">
+              Entitlements are enforced by the server. Module activation and
+              billing management are not available in this milestone.
+            </p>
+          }
+          @case ("Activity log") {
+            @for (tenant of [membership()!.tenantId]; track tenant) {
+              <activity-history [tenantId]="tenant" />
+            }
+          }
+          @case ("Settings") {
+            @if (settings(); as s) {
+              <section class="panel form-panel">
+                <div class="section-heading">
+                  <div>
+                    <h2>Organization preferences</h2>
+                    <p class="muted">
+                      Defaults inherited by every branch unless overridden.
+                    </p>
+                  </div>
+                  <span class="pill">{{
+                    isAdmin() ? "ADMIN ACCESS" : "READ ONLY"
+                  }}</span>
+                </div>
+                <form (ngSubmit)="saveSettings()">
+                  <fieldset [disabled]="!isAdmin() || busy()">
+                    <div class="form-grid">
+                      <div>
+                        <label for="display-name">Display name</label
+                        ><input
+                          id="display-name"
+                          name="displayName"
+                          [(ngModel)]="settingsForm.displayName"
+                          required
+                          maxlength="120"
+                        />
+                      </div>
+                      <div>
+                        <label for="year">Academic year label</label
+                        ><input
+                          id="year"
+                          name="academicYearLabel"
+                          [(ngModel)]="settingsForm.academicYearLabel"
+                          required
+                          maxlength="40"
+                        /><small class="field-hint"
+                          >Label only. Dated academic periods are not yet
+                          implemented.</small
+                        >
+                      </div>
+                      <div>
+                        <label for="timezone">Timezone</label
+                        ><input
+                          id="timezone"
+                          name="timezone"
+                          [(ngModel)]="settingsForm.timeZone"
+                          required
+                          placeholder="Asia/Kolkata"
+                        />
+                      </div>
+                      <div>
+                        <label for="locale">Locale</label
+                        ><input
+                          id="locale"
+                          name="locale"
+                          [(ngModel)]="settingsForm.locale"
+                          required
+                          placeholder="en-IN"
+                        />
+                      </div>
+                      <div>
+                        <label for="currency">Currency code</label
+                        ><input
+                          id="currency"
+                          name="currency"
+                          [(ngModel)]="settingsForm.currency"
+                          required
+                          pattern="[A-Z]{3}"
+                          maxlength="3"
+                          placeholder="INR"
+                        />
+                      </div>
+                    </div>
+                    @if (isAdmin()) {
+                      <button
+                        class="primary"
+                        [disabled]="busy() || settingsConflict()"
+                      >
+                        Save preferences
+                      </button>
+                    }
+                  </fieldset>
+                </form>
+                @if (settingsConflict()) {
+                  <p class="muted" role="status">
+                    Your unsaved organization edits are still above. Reloading
+                    discards them.
+                  </p>
+                  <button
+                    type="button"
+                    class="secondary"
+                    (click)="reloadSettings()"
+                    [disabled]="busy()"
+                  >
+                    Discard my edits and reload organization preferences
+                  </button>
+                }
+              </section>
+              @if (canManage() && branches().length) {
+                <section class="panel form-panel">
+                  <h2>Branch overrides</h2>
+                  <p class="muted">
+                    Leave a field empty to inherit the organization value shown
+                    below.
+                  </p>
+                  <form (ngSubmit)="saveBranchSettings()">
+                    <fieldset [disabled]="busy()">
+                      <label for="settings-branch">Branch</label
+                      ><select
+                        id="settings-branch"
+                        name="selectedBranch"
+                        [ngModel]="selectedBranch"
+                        (ngModelChange)="selectBranch($event)"
+                        [disabled]="busy()"
+                      >
+                        @for (b of branches(); track b.id) {
+                          <option [value]="b.id">{{ b.name }}</option>
+                        }
+                      </select>
+                      <div class="form-grid">
+                        <div>
+                          <label for="b-zone">Timezone override</label
+                          ><input
+                            id="b-zone"
+                            name="branchTimeZone"
+                            [(ngModel)]="branchTimeZone"
+                            [placeholder]="s.timeZone"
+                          /><small class="field-hint"
+                            >Effective:
+                            {{ branchTimeZone || s.timeZone }}</small
+                          >
+                        </div>
+                        <div>
+                          <label for="b-locale">Locale override</label
+                          ><input
+                            id="b-locale"
+                            name="branchLocale"
+                            [(ngModel)]="branchLocale"
+                            [placeholder]="s.locale"
+                          /><small class="field-hint"
+                            >Effective: {{ branchLocale || s.locale }}</small
+                          >
+                        </div>
+                        <div>
+                          <label for="b-currency">Currency override</label
+                          ><input
+                            id="b-currency"
+                            name="branchCurrency"
+                            [(ngModel)]="branchCurrency"
+                            [placeholder]="s.currency"
+                            pattern="[A-Z]{3}"
+                            maxlength="3"
+                          /><small class="field-hint"
+                            >Effective:
+                            {{ branchCurrency || s.currency }}</small
+                          >
+                        </div>
+                      </div>
+                      <button
+                        class="primary"
+                        [disabled]="busy() || branchSettingsConflict()"
+                      >
+                        Save branch overrides
+                      </button>
+                    </fieldset>
+                  </form>
+                  @if (branchSettingsConflict()) {
+                    <p class="muted" role="status">
+                      Your unsaved branch edits are still above. Reloading
+                      discards them.
+                    </p>
+                    <button
+                      type="button"
+                      class="secondary"
+                      (click)="reloadSettings(true)"
+                      [disabled]="busy()"
+                    >
+                      Discard my edits and reload branch overrides
+                    </button>
+                  }
+                </section>
+              }
+              <section class="panel form-panel">
+                <h2>Account security</h2>
+                <p class="muted">
+                  Sign out every browser session for your account, including
+                  this one.
+                </p>
+                <button
+                  class="secondary"
+                  (click)="logout(true)"
+                  [disabled]="busy()"
+                >
+                  Sign out all sessions
+                </button>
+              </section>
+            }
+          }
+        }
+        <footer class="workspace-footer">
+          <span>CampusNexa · Built for the way schools grow.</span
+          ><span>Foundation preview · v0.1</span>
+        </footer>
+      </main>
+    </div>
+  </div>
+}

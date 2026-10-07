@@ -1,0 +1,14 @@
+**/node_modules
+**/bin
+**/obj
+**/dist
+**/.angular
+**/out-tsc
+**/test-results
+**/playwright-report
+.env
+.env.*
+.runtime
+backups
+test-results
+.git

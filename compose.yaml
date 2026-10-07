@@ -1,0 +1,100 @@
+# Local development only. Production needs TLS, secret management and non-fixture onboarding.
+name: campusnexa
+services:
+  mail:
+    image: axllent/mailpit:v1.27.4
+    ports:
+      - "127.0.0.1:8025:8025"
+    restart: unless-stopped
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: campusnexa
+      POSTGRES_USER: campusnexa
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run node scripts/init-local.mjs first}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U campusnexa -d campusnexa]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  migrate:
+    image: campusnexa-api:local
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: [--migrate]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Database: Host=db;Database=campusnexa;Username=campusnexa;Password=${POSTGRES_PASSWORD}
+      Seed__Enabled: "true"
+      Seed__Password: ${ADMIN_PASSWORD:?Run node scripts/init-local.mjs first}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - data-protection:/data/keys
+    restart: "no"
+  api:
+    image: campusnexa-api:local
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      Invitations__LocalMailEnabled: "true"
+      Invitations__PublicOrigin: http://127.0.0.1:${WEB_PORT:-4200}
+      ConnectionStrings__Database: Host=db;Database=campusnexa;Username=campusnexa;Password=${POSTGRES_PASSWORD}
+    depends_on:
+      mail:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - data-protection:/data/keys
+    restart: unless-stopped
+  worker:
+    image: campusnexa-api:local
+    command: [--mail-worker]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Invitations__LocalMailEnabled: "true"
+      ConnectionStrings__Database: Host=db;Database=campusnexa;Username=campusnexa;Password=${POSTGRES_PASSWORD}
+    depends_on:
+      mail:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - data-protection:/data/keys
+    restart: unless-stopped
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "127.0.0.1:${WEB_PORT:-4200}:8080"
+    depends_on:
+      - api
+    restart: unless-stopped
+  e2e:
+    profiles: [test]
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.e2e
+    network_mode: service:web
+    environment:
+      BASE_URL: http://127.0.0.1:8080
+      MAIL_URL: http://mail:8025
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+    depends_on:
+      - web
+    volumes:
+      - ./.runtime/screenshots:/tests/.runtime/screenshots
+    shm_size: 1gb
+volumes:
+  postgres-data:
+  data-protection:

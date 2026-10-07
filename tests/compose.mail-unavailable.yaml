@@ -1,0 +1,5 @@
+# Only used for one-shot fixture dispatchers. Does not stop the shared Mailpit service.
+services:
+  api:
+    extra_hosts:
+      mail: "127.0.0.1"

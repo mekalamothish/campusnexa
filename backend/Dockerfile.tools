@@ -1,0 +1,9 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0
+WORKDIR /src
+COPY global.json ./
+RUN dotnet tool install --tool-path /tools dotnet-ef --version 10.0.12
+COPY backend/CampusNexa.Api/CampusNexa.Api.csproj backend/CampusNexa.Api/packages.lock.json ./backend/CampusNexa.Api/
+RUN dotnet restore backend/CampusNexa.Api --locked-mode
+COPY backend/CampusNexa.Api ./backend/CampusNexa.Api
+RUN dotnet build backend/CampusNexa.Api -c Release --no-restore
+ENTRYPOINT ["/tools/dotnet-ef"]

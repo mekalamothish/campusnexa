@@ -1,0 +1,99 @@
+name: Verify platform foundation
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Verify recovery and MFA token lifetime and purpose
+        run: |
+          dotnet restore tests/RecoveryChecks --locked-mode
+          dotnet run --project tests/RecoveryChecks -c Release --no-restore
+      - name: Check source publication boundaries
+        run: node scripts/check-source-safety.mjs
+      - name: Generate isolated fixture credentials
+        run: node scripts/init-local.mjs
+      - name: Verify workspace URL parsing and navigation permissions
+        run: node --test tests/navigation.test.mjs
+      - name: Build and start stack
+        run: docker compose up --build -d
+      - name: Wait for database-backed readiness
+        run: node scripts/wait-ready.mjs
+      - name: Verify tenant, branch, cookie and CSRF boundaries
+        run: node --env-file=.env --test tests/platform.integration.test.mjs
+        env:
+          ALLOW_FIXTURE_WRITES: '1'
+      - name: Install browser test dependencies
+        # Run sequentially after platform tests to avoid shared fixture/session races.
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Verify settings conflicts and concurrent writes
+        run: node --env-file=.env --test tests/settings-concurrency.integration.test.mjs
+        env:
+          ALLOW_FIXTURE_WRITES: '1'
+      - name: Verify desktop and mobile browser flows
+        working-directory: frontend
+        run: |
+          sleep 60
+          node --env-file=../.env node_modules/@playwright/test/cli.js test
+      - name: Verify database constraints transactionally
+        run: docker compose exec -T db psql -U campusnexa -d campusnexa -v ON_ERROR_STOP=1 < tests/database-boundaries.sql
+      - name: Verify invitations, school onboarding and bootstrap recovery
+        run: |
+          sleep 60
+          node --env-file=.env --test tests/invitations.integration.test.mjs
+        env:
+          ALLOW_FIXTURE_WRITES: '1'
+      - name: Verify account recovery
+        run: |
+          sleep 60
+          node --env-file=.env --test tests/recovery.integration.test.mjs
+        env:
+          ALLOW_FIXTURE_WRITES: '1'
+      - name: Verify MFA lifecycle
+        run: |
+          sleep 60
+          node --env-file=.env --test tests/mfa.integration.test.mjs
+        env:
+          ALLOW_FIXTURE_WRITES: '1'
+      - name: Verify encrypted storage and private security history
+        run: |
+          sleep 60
+          node --env-file=.env --test tests/security-storage.integration.test.mjs
+        env:
+          ALLOW_FIXTURE_WRITES: '1'
+      - name: Verify durable local mail and retries
+        run: |
+          sleep 60
+          node --env-file=.env --test tests/outbox.integration.test.mjs
+        env:
+          ALLOW_FIXTURE_WRITES: '1'
+      - name: Verify scoped invitation delivery and controlled retry
+        run: |
+          sleep 60
+          node --env-file=.env --test tests/invitation-delivery.integration.test.mjs
+        env:
+          ALLOW_FIXTURE_WRITES: '1'
+      - name: Verify scoped history pagination
+        run: |
+          sleep 60
+          node --env-file=.env --test tests/history-pagination.integration.test.mjs
+        env:
+          ALLOW_FIXTURE_WRITES: '1'
+      - name: Service state after failure
+        if: failure()
+        run: docker compose ps -a
+      - name: Stop CI stack
+        if: always()
+        run: docker compose down
